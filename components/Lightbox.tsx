@@ -19,8 +19,34 @@ export default function Lightbox({
 }: LightboxProps) {
   const [isSlideshow, setIsSlideshow] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [loaded, setLoaded] = useState<Set<number>>(new Set([currentIndex]));
+  const [swipeOffset, setSwipeOffset] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isSwiping = useRef(false);
+
+  const handleDownload = useCallback(async () => {
+    const photo = photos[currentIndex];
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      const response = await fetch(photo.src);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = photo.filename || `photo-${currentIndex + 1}.webp`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [currentIndex, photos, isDownloading]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -78,6 +104,7 @@ export default function Lightbox({
         setIsSlideshow((s) => !s);
       }
       if (e.key === "f" || e.key === "F") toggleFullscreen();
+      if (e.key === "d" || e.key === "D") handleDownload();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
@@ -97,6 +124,37 @@ export default function Lightbox({
       document.body.style.overflow = "";
     };
   }, []);
+
+  // Touch swipe handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    isSwiping.current = false;
+    setSwipeOffset(0);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+    const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+    // Only swipe horizontally if horizontal movement > vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+      isSwiping.current = true;
+      setSwipeOffset(deltaX);
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    if (isSwiping.current && Math.abs(swipeOffset) > 50) {
+      if (swipeOffset < 0) {
+        goNext();
+      } else {
+        goPrev();
+      }
+    }
+    setSwipeOffset(0);
+    touchStartRef.current = null;
+    isSwiping.current = false;
+  }, [swipeOffset, goNext, goPrev]);
 
   const currentPhoto = photos[currentIndex];
 
@@ -162,6 +220,30 @@ export default function Lightbox({
               )}
             </button>
 
+            {/* Download */}
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className={`p-2 rounded-full transition-colors ${
+                isDownloading
+                  ? "bg-gold text-charcoal"
+                  : "bg-white/10 text-white hover:bg-white/20"
+              }`}
+              title="Download photo"
+            >
+              {isDownloading ? (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="animate-spin">
+                  <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                </svg>
+              ) : (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              )}
+            </button>
+
             {/* Close */}
             <button
               onClick={onClose}
@@ -202,17 +284,22 @@ export default function Lightbox({
         {/* Image - using raw img for instant loading (no next/image optimization delay) */}
         <motion.div
           key={currentPhoto.src}
-          className="relative z-5 max-w-[90vw] max-h-[85vh] flex items-center justify-center"
+          className="relative z-5 max-w-[90vw] max-h-[85vh] flex items-center justify-center select-none"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
           transition={{ duration: 0.2 }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ transform: swipeOffset ? `translateX(${swipeOffset}px)` : undefined }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={currentPhoto.src}
             alt={currentPhoto.alt}
-            className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg"
+            className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg pointer-events-none"
+            draggable={false}
           />
         </motion.div>
 
