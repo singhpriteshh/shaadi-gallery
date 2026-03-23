@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { formatEventName } from "./shared";
 
 export interface Photo {
   src: string;
@@ -55,36 +56,8 @@ export function getAllPhotos(): Photo[] {
   return events.flatMap((event) => getPhotosForEvent(event));
 }
 
-export function formatEventName(slug: string): string {
-  return slug.charAt(0).toUpperCase() + slug.slice(1);
-}
+export { formatEventName, EVENT_DETAILS } from "./shared";
 
 export function getEventPhotoCount(event: string): number {
   return (manifest[event] || []).length;
 }
-
-export const EVENT_DETAILS: Record<
-  string,
-  { emoji: string; tagline: string; color: string }
-> = {
-  tilak: {
-    emoji: "🪷",
-    tagline: "Blessings & sacred rituals",
-    color: "#D4A0A0",
-  },
-  haldi: {
-    emoji: "✨",
-    tagline: "Drenched in turmeric & love",
-    color: "#F5C563",
-  },
-  mehndi: {
-    emoji: "🌿",
-    tagline: "Adorned with henna & happiness",
-    color: "#8B6F47",
-  },
-  wedding: {
-    emoji: "💍",
-    tagline: "Where two hearts became one",
-    color: "#C9A96E",
-  },
-};

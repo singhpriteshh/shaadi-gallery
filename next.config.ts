@@ -11,6 +11,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  turbopack: {
+    resolveAlias: {
+      // canvas is a Node.js-only dependency used by face-api.js pre-processing script.
+      // In the browser, face-api.js uses the native Canvas API.
+      canvas: { browser: "" },
+    },
+  },
+  serverExternalPackages: ["canvas"],
 };
 
 export default nextConfig;

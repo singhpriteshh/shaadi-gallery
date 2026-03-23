@@ -1,3 +1,4 @@
+import Link from "next/link";
 import Hero from "@/components/Hero";
 import Navbar from "@/components/Navbar";
 import EventCard from "@/components/EventCard";
@@ -122,6 +123,36 @@ export default function Home() {
               <path d="M7 17L17 7M17 7H7M17 7v10" />
             </svg>
           </a>
+        </div>
+      </section>
+
+      {/* Find My Photos CTA */}
+      <section className="py-16 sm:py-20 px-6 bg-cream">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="text-gold text-2xl mb-3">✨</p>
+          <h2 className="text-3xl sm:text-4xl font-heading text-charcoal mb-3">
+            Find Your Photos
+          </h2>
+          <p className="text-charcoal-light font-body mb-8 max-w-md mx-auto">
+            Take a selfie and let our AI find all your pictures from the wedding — across every event!
+          </p>
+
+          <Link
+            href="/find-my-photos"
+            className="group inline-flex items-center gap-3 px-8 py-4 bg-charcoal text-white rounded-2xl hover:bg-charcoal/90 transition-all duration-300 shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+          >
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-gold">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+              <circle cx="12" cy="13" r="4" />
+            </svg>
+            <div className="text-left">
+              <span className="block font-heading text-lg tracking-wide">Find My Photos</span>
+              <span className="block text-xs text-white/50 font-body tracking-wider">AI-powered face recognition</span>
+            </div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-2 text-white/40 group-hover:text-gold group-hover:translate-x-1 transition-all">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </Link>
         </div>
       </section>
 

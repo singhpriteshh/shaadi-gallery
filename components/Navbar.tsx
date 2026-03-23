@@ -64,8 +64,16 @@ export default function Navbar({ darkHero = false }: NavbarProps) {
             Events
           </Link>
           <Link
+            href="/find-my-photos"
+            className={`text-sm tracking-[0.15em] uppercase hover:text-gold transition-colors font-body flex items-center gap-1 ${
+              useWhiteText ? "text-white/80" : "text-charcoal-light"
+            }`}
+          >
+            Find Me <span className="text-base">✨</span>
+          </Link>
+          <Link
             href="/#story"
-            className={`text-sm tracking-[0.15em] uppercase hover:text-gold transition-colors font-body ${
+            className={`text-sm tracking-[0.15em] uppercase hover:text-gold transition-colors font-body hidden sm:block ${
               useWhiteText ? "text-white/80" : "text-charcoal-light"
             }`}
           >
