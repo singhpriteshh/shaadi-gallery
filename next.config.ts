@@ -13,12 +13,13 @@ const nextConfig: NextConfig = {
   },
   turbopack: {
     resolveAlias: {
-      // canvas is a Node.js-only dependency used by face-api.js pre-processing script.
-      // In the browser, face-api.js uses the native Canvas API.
-      canvas: { browser: "" },
+      // Force @vladmandic/human to use the browser ESM build even during SSR.
+      // The Node.js build requires @tensorflow/tfjs-node which is not available.
+      // This library is only used client-side ("use client" component).
+      "@vladmandic/human": "@vladmandic/human/dist/human.esm.js",
     },
   },
-  serverExternalPackages: ["canvas"],
+  serverExternalPackages: ["@vladmandic/human"],
 };
 
 export default nextConfig;

@@ -184,7 +184,7 @@ export default function FindMyPhotosClient() {
       setStatusMessage("Searching through all wedding photos...");
 
       const allDescriptors: FaceDescriptorMap = await fetchDescriptors();
-      const matchResults = findMatches(descriptor, allDescriptors, 0.6);
+      const matchResults = findMatches(descriptor, allDescriptors, 0.45);
 
       if (matchResults.length === 0) {
         setStatus("no-results");

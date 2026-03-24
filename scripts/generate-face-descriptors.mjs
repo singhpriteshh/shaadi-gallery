@@ -2,72 +2,85 @@
 
 /**
  * Pre-processing script: Downloads all gallery photos from Cloudinary,
- * runs face detection, and saves face descriptors to lib/face-descriptors.json.
+ * runs face detection using @vladmandic/human (InsightFace), and saves
+ * face embeddings to lib/face-descriptors.json.
  *
  * Usage: node scripts/generate-face-descriptors.mjs
  */
 
-import * as faceapi from "face-api.js";
-import canvas from "canvas";
+import H from "@vladmandic/human";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+const Human = H.Human || H.default?.Human || H;
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
-// Monkey-patch face-api.js to use node-canvas
-const { Canvas, Image, ImageData } = canvas;
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
-
 const CLOUD_NAME = "dwcrdvkzz";
-const CONCURRENCY = 5; // parallel downloads
+const CONCURRENCY = 3; // parallel downloads (reduced for stability)
 const PHOTO_WIDTH = 800; // download width for face detection
 
 function cloudinaryUrl(publicId, width) {
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/f_jpg,q_auto,w_${width}/${publicId}`;
 }
 
-async function loadModels() {
-  const modelsPath = path.join(ROOT, "public", "models");
-  console.log("📦 Loading face-api.js models (SSD MobileNet v1 + full landmarks)...");
-  await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelsPath);
-  await faceapi.nets.faceLandmark68Net.loadFromDisk(modelsPath);
-  await faceapi.nets.faceRecognitionNet.loadFromDisk(modelsPath);
+let human;
+
+async function initHuman() {
+  console.log("📦 Loading @vladmandic/human models (InsightFace)...");
+
+  const config = {
+    modelBasePath: "https://vladmandic.github.io/human-models/models/",
+    backend: "tensorflow",
+    face: {
+      enabled: true,
+      detector: { enabled: true, rotation: false, maxDetected: 20, minConfidence: 0.3 },
+      mesh: { enabled: false },
+      iris: { enabled: false },
+      emotion: { enabled: false },
+      description: { enabled: true },
+    },
+    body: { enabled: false },
+    hand: { enabled: false },
+    gesture: { enabled: false },
+    segmentation: { enabled: false },
+    object: { enabled: false },
+  };
+
+  human = new Human(config);
+  await human.load();
   console.log("✅ Models loaded\n");
 }
 
-async function downloadImage(url) {
+async function downloadImageBuffer(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`);
   const buffer = Buffer.from(await response.arrayBuffer());
-  const img = await canvas.loadImage(buffer);
-  return img;
+  return buffer;
 }
 
 async function processPhoto(publicId) {
   const url = cloudinaryUrl(publicId, PHOTO_WIDTH);
   try {
-    const img = await downloadImage(url);
+    const buffer = await downloadImageBuffer(url);
 
-    // Create a canvas with the image
-    const cvs = canvas.createCanvas(img.width, img.height);
-    const ctx = cvs.getContext("2d");
-    ctx.drawImage(img, 0, 0);
+    // Human can accept a raw tensor or we can use its built-in image decoding
+    // For Node.js, we pass the buffer and let Human/tf decode it
+    const tensor = human.tf.node.decodeImage(buffer, 3);
+    const result = await human.detect(tensor);
+    human.tf.dispose(tensor);
 
-    // Detect all faces with landmarks and descriptors
-    const detections = await faceapi
-      .detectAllFaces(cvs, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.3 }))
-      .withFaceLandmarks() // use full 68-point model
-      .withFaceDescriptors();
-
-    if (detections.length === 0) {
+    if (!result.face || result.face.length === 0) {
       return { publicId, faces: [] };
     }
 
-    const faces = detections.map((d) => ({
-      descriptor: Array.from(d.descriptor),
-    }));
+    const faces = result.face
+      .filter((f) => f.embedding && f.embedding.length > 0)
+      .map((f) => ({
+        descriptor: Array.from(f.embedding),
+      }));
 
     return { publicId, faces };
   } catch (err) {
@@ -87,7 +100,7 @@ async function processInBatches(items, batchSize, fn) {
 }
 
 async function main() {
-  console.log("🎭 Face Descriptor Generator for Shaadi Gallery\n");
+  console.log("🎭 Face Descriptor Generator for Shaadi Gallery (InsightFace)\n");
   console.log("=".repeat(50));
 
   // Load manifest
@@ -100,15 +113,26 @@ async function main() {
   events.forEach((e) => console.log(`   • ${e}: ${manifest[e].length} photos`));
 
   // Load models
-  await loadModels();
+  await initHuman();
 
   // Check for existing progress
   const outputPath = path.join(ROOT, "lib", "face-descriptors.json");
   let existing = {};
   if (fs.existsSync(outputPath)) {
-    existing = JSON.parse(fs.readFileSync(outputPath, "utf-8"));
-    const existingCount = Object.keys(existing).length;
-    console.log(`📄 Found existing file with ${existingCount} entries, resuming...\n`);
+    try {
+      existing = JSON.parse(fs.readFileSync(outputPath, "utf-8"));
+      // Check if existing descriptors use the new 512-dim format
+      const firstEntry = Object.values(existing).find((faces) => faces.length > 0);
+      if (firstEntry && firstEntry[0]?.descriptor?.length !== 512) {
+        console.log("⚠️  Existing descriptors use old format (128-dim). Starting fresh.\n");
+        existing = {};
+      } else {
+        const existingCount = Object.keys(existing).length;
+        console.log(`📄 Found existing file with ${existingCount} entries, resuming...\n`);
+      }
+    } catch {
+      existing = {};
+    }
   }
 
   // Filter out already-processed photos
@@ -169,12 +193,17 @@ function printStats(descriptors) {
   const withFaces = entries.filter(([, faces]) => faces.length > 0);
   const totalFaces = entries.reduce((sum, [, faces]) => sum + faces.length, 0);
 
+  // Check embedding dimension
+  const sampleFace = withFaces.length > 0 ? withFaces[0][1][0] : null;
+  const embeddingDim = sampleFace?.descriptor?.length || "N/A";
+
   console.log("=".repeat(50));
   console.log("📊 Statistics:");
   console.log(`   • Total photos processed: ${entries.length}`);
   console.log(`   • Photos with faces: ${withFaces.length}`);
   console.log(`   • Photos without faces: ${entries.length - withFaces.length}`);
   console.log(`   • Total faces detected: ${totalFaces}`);
+  console.log(`   • Embedding dimension: ${embeddingDim}`);
   console.log("=".repeat(50));
 }
 

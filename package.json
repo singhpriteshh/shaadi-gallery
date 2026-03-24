@@ -10,7 +10,7 @@
     "generate:faces": "node scripts/generate-face-descriptors.mjs"
   },
   "dependencies": {
-    "face-api.js": "^0.22.2",
+    "@vladmandic/human": "^3.3.6",
     "framer-motion": "^12.38.0",
     "next": "16.2.1",
     "react": "19.2.4",
@@ -18,10 +18,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tensorflow/tfjs-node": "^4.22.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "canvas": "^3.2.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.1",
     "tailwindcss": "^4",
